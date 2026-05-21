@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morbflix - Library</title>
+    
+    <script src="/static/htmx.min.js"></script>
+    
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-dark to-dark">
+    
+    <div class="text-center mb-16 animate-fade-in-down">
+        <h1 class="text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-morb to-red-400 tracking-tight mb-4 drop-shadow-lg">
+            Morbflix
+        </h1>
+        <p class="text-gray-400 text-xl font-medium tracking-wide">Your Personal Streaming Server</p>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
+        <a href="/library" class="group relative bg-panel p-8 rounded-2xl border border-gray-800 shadow-2xl hover:border-morb/50 hover:shadow-morb/10 transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center">
+            <div class="bg-gray-900/50 p-4 rounded-full mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg class="w-10 h-10 text-morb" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-morb transition-colors">Library</h3>
+            <p class="text-gray-400 leading-relaxed">Browse and seamlessly stream your organized movies & TV shows.</p>
+        </a>
+
+        <a href="/downloads" class="group relative bg-panel p-8 rounded-2xl border border-gray-800 shadow-2xl hover:border-morb/50 hover:shadow-morb/10 transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center">
+            <div class="bg-gray-900/50 p-4 rounded-full mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg class="w-10 h-10 text-morb" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-morb transition-colors">Downloads</h3>
+            <p class="text-gray-400 leading-relaxed">Add magnet links remotely and monitor active torrent downloads.</p>
+        </a>
+    </div>
+</body>
+</html>
