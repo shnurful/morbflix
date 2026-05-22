@@ -1,0 +1,32 @@
+package views
+
+templ Layout(pageTitle string) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>Morbflix - { pageTitle }</title>
+		
+		<script src="/static/htmx.min.js"></script>
+		<script src="/static/hls.min.js"></script>
+
+		<link href="/static/styles.css" rel="stylesheet"/>
+	</head>
+	
+	<!-- Restored your awesome radial gradient and custom colors to the master layout! -->
+	<body class="min-h-screen flex flex-col items-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-dark to-dark text-white font-sans">
+		
+		<!-- Global Navigation Bar -->
+		<div class="mb-10 space-x-6">
+			<a class="text-morb font-bold hover:underline" href="/">🏠 Home</a>
+			<a class="text-morb font-bold hover:underline" href="/library">🎬 My Library</a>
+			<a class="text-morb font-bold hover:underline" href="/downloads">⬇️ Downloads</a>
+		</div>
+
+		<!-- Individual pages get injected here -->
+		{ children... }
+
+	</body>
+	</html>
+}

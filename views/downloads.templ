@@ -1,0 +1,22 @@
+package views
+
+templ Downloads() {
+	@Layout("Downloads") {
+		<h2 class="text-3xl font-bold text-red-500 mb-6 tracking-wide">Downloader</h2>
+
+		<div class="w-[600px] bg-neutral-900 p-6 rounded-xl shadow-lg mb-6">
+			<h3 class="text-xl font-bold mb-4">Add Torrent</h3>
+			<form hx-post="/htmx/torrent/add" hx-target="#magnet-input" hx-swap="outerHTML" class="flex gap-4">
+				<input type="text" id="magnet-input" name="magnet" placeholder="Paste Magnet Link..." required class="flex-grow bg-neutral-800 text-white px-4 py-2 rounded outline-none focus:ring-2 focus:ring-red-500" />
+				<button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded transition-colors">Download</button>
+			</form>
+		</div>
+
+		<div class="w-[600px] bg-neutral-900 p-6 rounded-xl shadow-lg">
+			<h3 class="text-xl font-bold mb-4">Active Downloads</h3>
+			<div id="torrent-list" hx-get="/htmx/torrent/status" hx-trigger="every 2s" hx-swap="innerHTML">
+				<p class="text-gray-400">Loading active downloads...</p>
+			</div>
+		</div>
+	}
+}

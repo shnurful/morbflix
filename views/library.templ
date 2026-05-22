@@ -1,0 +1,15 @@
+package views
+
+templ Library() {
+	@Layout("Library") {
+		<div class="w-[800px] bg-neutral-900 p-6 rounded-xl shadow-lg">
+			<button hx-post="/htmx/library/scan" hx-target="#movie-list" class="w-full bg-neutral-700 hover:bg-red-500 text-white font-bold py-3 rounded mb-6 transition-colors">
+				Scan Folder for Missing Files
+			</button>
+			
+			<div id="movie-list" hx-get="/htmx/movies" hx-trigger="load">
+				<p class="text-gray-400">Loading movies...</p>
+			</div>
+		</div>
+	}
+}

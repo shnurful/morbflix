@@ -1,0 +1,181 @@
+package views
+
+templ Watch() {
+	@Layout("Watch") {
+		<style>
+			/* Small dynamic overrides for the auto-hide UI script */
+			.hide-ui { cursor: none !important; }
+			.hide-ui .controls { opacity: 0 !important; pointer-events: none !important; }
+		</style>
+
+		<div class="relative max-w-[1000px] w-full rounded-lg overflow-hidden shadow-2xl bg-black mt-5" id="player-wrapper">
+			<video id="player" autoplay class="w-full block bg-black max-h-screen"></video>
+			
+			<div class="absolute bottom-0 left-0 w-full box-border flex items-center gap-4 px-5 py-4 bg-gradient-to-t from-black/90 to-transparent transition-opacity duration-500 opacity-100 z-10 controls">
+				<button id="play-btn" onclick="togglePlay()" class="bg-transparent border-none text-white text-xl cursor-pointer hover:text-red-500">▶</button>
+				<span class="text-sm font-mono drop-shadow-md" id="time-current">0:00</span>
+				<input type="range" id="seek-bar" min="0" max="100" value="0" class="flex-grow cursor-pointer accent-red-500" />
+				<span class="text-sm font-mono drop-shadow-md" id="time-total">0:00</span>
+				<button id="cc-btn" onclick="toggleCC()" class="font-bold rounded px-2 text-white hover:text-red-500 transition-colors">CC</button>
+				<button id="fs-btn" onclick="toggleFullscreen()" class="ml-2 text-xl bg-transparent border-none text-white hover:text-red-500">⛶</button>
+			</div>
+		</div>
+
+		<div hx-get="/htmx/video/nav" hx-trigger="load"></div>
+
+		<script type="text/javascript">
+			var hls = null;
+			let currentFile = "";
+			let currentDuration = 0;
+			let currentOffset = 0;
+			let isSeeking = false;
+			let subsEnabled = false; 
+
+			const video = document.getElementById('player');
+			const playBtn = document.getElementById('play-btn');
+			const ccBtn = document.getElementById('cc-btn');
+			const seekBar = document.getElementById('seek-bar');
+			const timeCurrent = document.getElementById('time-current');
+			const timeTotal = document.getElementById('time-total');
+			const wrapper = document.getElementById('player-wrapper');
+
+			function formatTime(seconds) {
+				if (isNaN(seconds)) return "0:00";
+				const m = Math.floor(seconds / 60);
+				const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+				return m + ":" + s;
+			}
+
+			const urlParams = new URLSearchParams(window.location.search);
+			const urlVideo = urlParams.get('v');
+			const urlDuration = parseInt(urlParams.get('d'));
+
+			if (urlVideo && !isNaN(urlDuration)) {
+				playMovie(urlVideo, urlDuration, 0);
+			} else {
+				window.location.href = "/library";
+			}
+
+			function playMovie(filePath, duration, startSec) {
+				currentFile = filePath;
+				currentDuration = duration;
+				currentOffset = startSec;
+
+				seekBar.max = duration;
+				timeTotal.innerText = formatTime(duration);
+
+				const subsFlag = subsEnabled ? "1" : "0";
+				const streamUrl = "/video/hls/" + filePath + "/playlist.m3u8?start=" + startSec + "&subs=" + subsFlag;
+
+				if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+					if (hls) hls.destroy(); 
+					hls = new Hls();
+					hls.loadSource(streamUrl); 
+					hls.attachMedia(video);
+					
+					hls.on(Hls.Events.MANIFEST_PARSED, function() {
+						video.play().then(() => {
+							playBtn.innerText = "⏸";
+							resetUI();
+						}).catch((e) => {
+							playBtn.innerText = "▶";
+						});
+					});
+				} 
+				else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+					video.src = streamUrl;
+					video.addEventListener('loadedmetadata', function() {
+						video.play().then(() => {
+							playBtn.innerText = "⏸";
+							resetUI();
+						}).catch((e) => {
+							playBtn.innerText = "▶";
+						});
+					});
+				}
+			}
+
+			function togglePlay() {
+				if (video.paused) { video.play(); playBtn.innerText = "⏸"; } 
+				else { video.pause(); playBtn.innerText = "▶"; }
+				resetUI();
+			}
+
+			function toggleCC() {
+				subsEnabled = !subsEnabled;
+				if (subsEnabled) {
+					ccBtn.style.color = '#ff5555';
+					ccBtn.style.background = 'rgba(255, 85, 85, 0.2)';
+				} else {
+					ccBtn.style.color = 'white';
+					ccBtn.style.background = 'none';
+				}
+				const actualTime = currentOffset + video.currentTime;
+				playMovie(currentFile, currentDuration, Math.floor(actualTime));
+			}
+
+			function toggleFullscreen() {
+				if (!document.fullscreenElement) {
+					if (wrapper.requestFullscreen) wrapper.requestFullscreen();
+					else if (wrapper.webkitRequestFullscreen) wrapper.webkitRequestFullscreen();
+				} else {
+					if (document.exitFullscreen) document.exitFullscreen();
+					else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+				}
+			}
+
+			video.addEventListener('click', togglePlay);
+			video.addEventListener('dblclick', toggleFullscreen);
+
+			video.addEventListener('timeupdate', () => {
+				if (!isSeeking) {
+					const actualTime = currentOffset + video.currentTime;
+					seekBar.value = actualTime;
+					timeCurrent.innerText = formatTime(actualTime);
+				}
+			});
+
+			seekBar.addEventListener('input', () => {
+				isSeeking = true;
+				timeCurrent.innerText = formatTime(seekBar.value);
+				resetUI();
+			});
+
+			seekBar.addEventListener('change', () => {
+				isSeeking = false;
+				playMovie(currentFile, currentDuration, parseInt(seekBar.value));
+			});
+
+			// AUTO-HIDE UI LOGIC
+			let hideTimeout;
+			function resetUI() {
+				wrapper.classList.remove('hide-ui');
+				clearTimeout(hideTimeout);
+				if (!video.paused) {
+					hideTimeout = setTimeout(() => { wrapper.classList.add('hide-ui'); }, 2500);
+				}
+			}
+
+			wrapper.addEventListener('mousemove', resetUI);
+			wrapper.addEventListener('mouseleave', () => { if (!video.paused) wrapper.classList.add('hide-ui'); });
+			video.addEventListener('pause', resetUI);
+
+			// HEARTBEAT LOGIC
+			setInterval(() => {
+				if (currentFile && !video.paused) {
+					const fd = new FormData();
+					fd.append("file", currentFile);
+					fetch('/morb/stream/ping', { method: 'POST', body: fd });
+				}
+			}, 5000);
+
+			window.addEventListener('beforeunload', () => {
+				if (currentFile) {
+					const fd = new FormData();
+					fd.append("file", currentFile);
+					navigator.sendBeacon('/morb/stream/stop', fd);
+				}
+			});
+		</script>
+	}
+}

@@ -1,0 +1,78 @@
+package views
+
+import "fmt"
+import "net/url"
+
+// 1. The Movie Library List
+templ MovieList(folderName string, movies []Movie, folders []Folder) {
+	if folderName != "" {
+		<button hx-get="/htmx/movies" hx-target="#movie-list" class="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 rounded mb-4 transition-colors">
+			⬅ Back to Folders
+		</button>
+		<h3 class="text-xl font-bold text-red-500 mb-4">📁 { folderName }</h3>
+	}
+	
+	for _, f := range folders {
+		<div hx-get={ string(templ.URL("/htmx/movies?folder=" + url.QueryEscape(f.Name))) } hx-target="#movie-list" class="bg-neutral-800 p-3 rounded mb-2 cursor-pointer hover:bg-red-500 transition-colors flex justify-between">
+			<span>📁 <strong>{ f.Name }</strong></span>
+			<span class="text-gray-400">{ fmt.Sprintf("%d items", f.Count) }</span>
+		</div>
+	}
+
+	for _, m := range movies {
+		<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(m.Path), m.Duration)) } class="block bg-neutral-800 p-3 rounded mb-2 hover:bg-red-500 transition-colors flex justify-between">
+			<span>▶ { m.Title }</span>
+			<span class="text-gray-400">{ FormatDuration(m.Duration) }</span>
+		</a>
+	}
+
+	if len(movies) == 0 && len(folders) == 0 {
+		<p class="text-gray-400">No movies yet.</p>
+	}
+}
+
+// 2. The Torrent Progress Bars
+templ TorrentList(torrents []Torrent) {
+	for _, t := range torrents {
+		<div class="bg-neutral-800 p-3 rounded mb-3">
+			<div class="flex justify-between mb-1">
+				<strong>{ t.Name }</strong>
+				<span>{ fmt.Sprintf("%.1f%%", t.Progress) }</span>
+			</div>
+			<div class="h-2 bg-neutral-700 rounded-full overflow-hidden">
+				<div class="h-full bg-red-500 transition-all duration-500" style={ fmt.Sprintf("width: %.1f%%", t.Progress) }></div>
+			</div>
+		</div>
+	}
+	if len(torrents) == 0 {
+		<p class="text-gray-400">No active downloads.</p>
+	}
+}
+
+// 3. The Input Replacement (When you add a magnet link)
+templ TorrentAddedInput() {
+	<input type="text" id="magnet-input" name="magnet" placeholder="Added! Paste another link..." required class="flex-grow bg-neutral-800 text-white px-4 py-2 rounded outline-none focus:ring-2 focus:ring-red-500" />
+}
+
+// 4. The Next/Prev Episode Bar
+templ VideoNav(currentTitle string, prev *NavItem, next *NavItem) {
+	<div class="flex justify-between items-center w-full max-w-[1000px] mt-4 bg-neutral-900 p-4 rounded-lg box-border shadow-lg">
+		if prev != nil {
+			<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(prev.Path), prev.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
+				⏮ { prev.Title }
+			</a>
+		} else {
+			<div></div>
+		}
+		
+		<span class="text-gray-300 font-bold text-lg">{ currentTitle }</span>
+
+		if next != nil {
+			<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(next.Path), next.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
+				{ next.Title } ⏭
+			</a>
+		} else {
+			<div></div>
+		}
+	</div> 
+}
