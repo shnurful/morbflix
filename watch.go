@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -27,8 +26,6 @@ var streamMu sync.Mutex
 
 func serveHLS(c *gin.Context) {
 	rawPath := c.Param("filepath")
-	startParam := c.DefaultQuery("start", "0")
-	subsParam := c.DefaultQuery("subs", "0")
 
 	decodedPath, err := url.QueryUnescape(rawPath)
 	if err != nil {
@@ -49,20 +46,14 @@ func serveHLS(c *gin.Context) {
 
 	if chunk == "playlist.m3u8" {
 		streamMu.Lock()
-		state, exists := activeStreams[filename]
-
-		needsRestart := !exists || state.Start != startParam || state.Subs != subsParam
-
-		if needsRestart {
-			if exists && state.Cmd.Process != nil {
-				state.Cmd.Process.Kill()
-			}
-
+		
+		// If the playlist doesn't exist, we start the stream!
+		if _, err := os.Stat(playlistPath); os.IsNotExist(err) {
 			os.RemoveAll(outDir)
 			os.MkdirAll(outDir, 0755)
 
 			videoFilePath := filepath.Join(hostMoviesDir, filename)
-			segmentPath := filepath.Join(outDir, "chunk_%03d.ts")
+			segmentPath := filepath.Join(outDir, "chunk_%03d.m4s")
 
 			if _, err := os.Stat(videoFilePath); os.IsNotExist(err) {
 				streamMu.Unlock()
@@ -70,65 +61,41 @@ func serveHLS(c *gin.Context) {
 				return
 			}
 
-			ffmpegArgs := []string{"-ss", startParam}
-
-			if subsParam == "1" {
-				ffmpegArgs = append(ffmpegArgs, "-copyts")
-			}
-
-			ffmpegArgs = append(ffmpegArgs,
+			// 0% CPU COMMAND: Direct Copy H.265 into Fragmented MP4 chunks
+			ffmpegArgs := []string{
 				"-i", videoFilePath,
-				"-c:v", "libx264",
-				"-preset", "ultrafast",
-				"-threads", "0",
-				"-crf", "23",
-				"-pix_fmt", "yuv420p",
-				"-g", "48",
-			)
-
-			if subsParam == "1" {
-				safePath := strings.ReplaceAll(videoFilePath, `\`, `\\`)
-				safePath = strings.ReplaceAll(safePath, `'`, `\'`)
-				safePath = strings.ReplaceAll(safePath, `:`, `\:`)
-
-				filterArg := fmt.Sprintf("subtitles='%s',setpts=PTS-%s/TB", safePath, startParam)
-				audioArg := fmt.Sprintf("asetpts=PTS-%s/TB", startParam)
-
-				ffmpegArgs = append(ffmpegArgs, "-vf", filterArg, "-c:a", "aac", "-ac", "2", "-af", audioArg)
-			} else {
-				ffmpegArgs = append(ffmpegArgs, "-c:a", "aac", "-ac", "2")
-			}
-
-			ffmpegArgs = append(ffmpegArgs,
+				"-c:v", "copy",    // ZERO CPU USAGE!
+				"-c:a", "aac",     // Transcode audio for browsers
+				"-ac", "2",
 				"-b:a", "128k",
-				"-sn", "-dn",
+				"-sn", "-dn",      // Strip subs/fonts (WASM handles them)
 				"-f", "hls",
 				"-hls_time", "2",
 				"-hls_list_size", "0",
 				"-hls_playlist_type", "event",
+				"-hls_segment_type", "fmp4",
 				"-hls_segment_filename", segmentPath,
 				playlistPath,
-			)
+			}
 
 			cmd := exec.Command("ffmpeg", ffmpegArgs...)
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Start(); err == nil {
-				activeStreams[filename] = &StreamState{Cmd: cmd, Start: startParam, Subs: subsParam, LastPing: time.Now()}
+				// We don't need Start or Subs in the struct anymore!
+				activeStreams[filename] = &StreamState{Cmd: cmd, LastPing: time.Now()}
 				go func() {
 					_ = cmd.Wait()
 					streamMu.Lock()
-					if activeStreams[filename] != nil && activeStreams[filename].Start == startParam && activeStreams[filename].Subs == subsParam {
+					if activeStreams[filename] != nil {
 						delete(activeStreams, filename)
 					}
 					streamMu.Unlock()
 				}()
 			}
-		}
-		streamMu.Unlock()
 
-		if needsRestart {
-			firstChunk := filepath.Join(outDir, "chunk_000.ts")
+			// Wait for the first MP4 chunk before responding
+			firstChunk := filepath.Join(outDir, "chunk_000.m4s")
 			startTime := time.Now()
 			for {
 				_, errPlay := os.Stat(playlistPath)
@@ -138,18 +105,29 @@ func serveHLS(c *gin.Context) {
 					break
 				}
 				if time.Since(startTime) > 10*time.Second {
+					streamMu.Unlock()
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "timeout"})
 					return
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
+		} else {
+			// If it already exists, just update the heartbeat!
+			if state, exists := activeStreams[filename]; exists {
+				state.LastPing = time.Now()
+			}
 		}
+		streamMu.Unlock()
 	}
+
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 
 	if strings.HasSuffix(chunk, ".m3u8") {
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
-	} else if strings.HasSuffix(chunk, ".ts") {
-		c.Header("Content-Type", "video/mp2t")
+	} else if strings.HasSuffix(chunk, ".m4s") || strings.HasSuffix(chunk, ".mp4") {
+		c.Header("Content-Type", "video/mp4") // Correct MIME type for fMP4
 	}
 
 	c.File(filepath.Join(outDir, chunk))

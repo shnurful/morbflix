@@ -41,7 +41,7 @@ func Library() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"w-[800px] bg-neutral-900 p-6 rounded-xl shadow-lg\"><button hx-post=\"/htmx/library/scan\" hx-target=\"#movie-list\" class=\"w-full bg-neutral-700 hover:bg-red-500 text-white font-bold py-3 rounded mb-6 transition-colors\">Scan Folder for Missing Files</button><div id=\"movie-list\" hx-get=\"/htmx/movies\" hx-trigger=\"load\"><p class=\"text-gray-400\">Loading movies...</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"w-[800px] bg-neutral-900 p-6 rounded-xl shadow-lg\"><button hx-post=\"/morbflix/htmx/library/scan\" hx-target=\"#movie-list\" class=\"w-full bg-neutral-700 hover:bg-red-500 text-white font-bold py-3 rounded mb-6 transition-colors\">Scan Folder for Missing Files</button><div id=\"movie-list\" hx-get=\"/morbflix/htmx/movies\" hx-trigger=\"load\"><p class=\"text-gray-400\">Loading movies...</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

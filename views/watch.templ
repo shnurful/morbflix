@@ -3,31 +3,46 @@ package views
 templ Watch() {
 	@Layout("Watch") {
 		<style>
-			/* Small dynamic overrides for the auto-hide UI script */
+			/* Dynamic overrides for the auto-hide UI script */
 			.hide-ui { cursor: none !important; }
 			.hide-ui .controls { opacity: 0 !important; pointer-events: none !important; }
 		</style>
-
-		<div class="relative max-w-[1000px] w-full rounded-lg overflow-hidden shadow-2xl bg-black mt-5" id="player-wrapper">
-			<video id="player" autoplay class="w-full block bg-black max-h-screen"></video>
+		<style>
+			/* Dynamic overrides for the auto-hide UI script */
+			.hide-ui { cursor: none !important; }
+			.hide-ui .controls { opacity: 0 !important; pointer-events: none !important; }
 			
-			<div class="absolute bottom-0 left-0 w-full box-border flex items-center gap-4 px-5 py-4 bg-gradient-to-t from-black/90 to-transparent transition-opacity duration-500 opacity-100 z-10 controls">
+			/* FIX: Force video to 100% height when the wrapper enters fullscreen */
+			#player-wrapper:fullscreen video { max-height: 100vh !important; height: 100vh !important; }
+			#player-wrapper:-webkit-full-screen video { max-height: 100vh !important; height: 100vh !important; }
+		</style>
+		<div class="relative max-w-[1000px] w-full rounded-lg overflow-hidden shadow-2xl bg-black mt-5" id="player-wrapper">
+			<video id="player" autoplay class="w-full block bg-black max-h-[85vh]"></video>
+			
+			<!-- Custom Control Bar -->
+			<div class="absolute bottom-0 left-0 w-full box-border flex items-center gap-4 px-5 py-4 bg-gradient-to-t from-black/90 to-transparent transition-opacity duration-500 opacity-100 z-20 controls">
 				<button id="play-btn" onclick="togglePlay()" class="bg-transparent border-none text-white text-xl cursor-pointer hover:text-red-500">▶</button>
 				<span class="text-sm font-mono drop-shadow-md" id="time-current">0:00</span>
 				<input type="range" id="seek-bar" min="0" max="100" value="0" class="flex-grow cursor-pointer accent-red-500" />
 				<span class="text-sm font-mono drop-shadow-md" id="time-total">0:00</span>
-				<button id="cc-btn" onclick="toggleCC()" class="font-bold rounded px-2 text-white hover:text-red-500 transition-colors">CC</button>
+				<!-- CC Button defaults to OFF (white background) -->
+				<button id="cc-btn" onclick="toggleCC()" class="font-bold rounded px-2 text-white bg-transparent hover:text-red-500 transition-colors">CC</button>
 				<button id="fs-btn" onclick="toggleFullscreen()" class="ml-2 text-xl bg-transparent border-none text-white hover:text-red-500">⛶</button>
 			</div>
 		</div>
 
-		<div hx-get="/htmx/video/nav" hx-trigger="load"></div>
+		<!-- HTMX dynamically loads Next/Prev buttons here -->
+		<div hx-get="/morbflix/htmx/video/nav" hx-trigger="load"></div>
 
-		<script type="text/javascript">
+		<script src="/morbflix/static/hls.min.js"></script>
+		<!-- WASM Subtitle Engine -->
+		<script src="/morbflix/static/subtitles-octopus.js"></script>
+		
+<script type="text/javascript">
 			var hls = null;
+			var octopusInstance = null;
 			let currentFile = "";
 			let currentDuration = 0;
-			let currentOffset = 0;
 			let isSeeking = false;
 			let subsEnabled = false; 
 
@@ -51,54 +66,26 @@ templ Watch() {
 			const urlDuration = parseInt(urlParams.get('d'));
 
 			if (urlVideo && !isNaN(urlDuration)) {
-				playMovie(urlVideo, urlDuration, 0);
+				playMovie(urlVideo, urlDuration);
 			} else {
-				window.location.href = "/library";
+				window.location.href = "/morbflix/library";
 			}
 
-			function playMovie(filePath, duration, startSec) {
-				currentFile = filePath;
-				currentDuration = duration;
-				currentOffset = startSec;
-
-				seekBar.max = duration;
-				timeTotal.innerText = formatTime(duration);
-
-				const subsFlag = subsEnabled ? "1" : "0";
-				const streamUrl = "/video/hls/" + filePath + "/playlist.m3u8?start=" + startSec + "&subs=" + subsFlag;
-
-				if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-					if (hls) hls.destroy(); 
-					hls = new Hls();
-					hls.loadSource(streamUrl); 
-					hls.attachMedia(video);
-					
-					hls.on(Hls.Events.MANIFEST_PARSED, function() {
-						video.play().then(() => {
-							playBtn.innerText = "⏸";
-							resetUI();
-						}).catch((e) => {
-							playBtn.innerText = "▶";
-						});
-					});
-				} 
-				else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-					video.src = streamUrl;
-					video.addEventListener('loadedmetadata', function() {
-						video.play().then(() => {
-							playBtn.innerText = "⏸";
-							resetUI();
-						}).catch((e) => {
-							playBtn.innerText = "▶";
-						});
+			// --- SUBTITLES ---
+			function initSubtitles() {
+				if (octopusInstance) {
+					octopusInstance.dispose();
+					octopusInstance = null;
+				}
+				if (subsEnabled && currentFile !== "") {
+					octopusInstance = new SubtitlesOctopus({
+						video: video,
+						subUrl: "/morbflix/morb/subs/" + currentFile, 
+						workerUrl: '/morbflix/static/subtitles-octopus-worker.js',
+						fonts: [], 
+						onReady: function() { console.log("[Morbflix] WASM Subtitles Active"); }
 					});
 				}
-			}
-
-			function togglePlay() {
-				if (video.paused) { video.play(); playBtn.innerText = "⏸"; } 
-				else { video.pause(); playBtn.innerText = "▶"; }
-				resetUI();
 			}
 
 			function toggleCC() {
@@ -108,10 +95,42 @@ templ Watch() {
 					ccBtn.style.background = 'rgba(255, 85, 85, 0.2)';
 				} else {
 					ccBtn.style.color = 'white';
-					ccBtn.style.background = 'none';
+					ccBtn.style.background = 'transparent';
 				}
-				const actualTime = currentOffset + video.currentTime;
-				playMovie(currentFile, currentDuration, Math.floor(actualTime));
+				// Instantly draw/destroy subtitles without stopping the video!
+				initSubtitles();
+			}
+
+			// --- VIDEO PLAYER ---
+			function playMovie(filePath, duration) {
+				currentFile = filePath;
+				currentDuration = duration;
+
+				seekBar.max = duration;
+				timeTotal.innerText = formatTime(duration);
+
+				const streamUrl = "/morbflix/video/hls/" + filePath + "/playlist.m3u8";
+
+				if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+					if (hls) hls.destroy(); 
+					hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120, enableWorker: true });
+					hls.loadSource(streamUrl); 
+					hls.attachMedia(video);
+					hls.on(Hls.Events.MANIFEST_PARSED, function() {
+						video.play().then(() => {
+							playBtn.innerText = "⏸";
+							resetUI();
+						}).catch((e) => {
+							playBtn.innerText = "▶";
+						});
+					});
+				} 
+			}
+
+			function togglePlay() {
+				if (video.paused) { video.play(); playBtn.innerText = "⏸"; } 
+				else { video.pause(); playBtn.innerText = "▶"; }
+				resetUI();
 			}
 
 			function toggleFullscreen() {
@@ -129,9 +148,8 @@ templ Watch() {
 
 			video.addEventListener('timeupdate', () => {
 				if (!isSeeking) {
-					const actualTime = currentOffset + video.currentTime;
-					seekBar.value = actualTime;
-					timeCurrent.innerText = formatTime(actualTime);
+					seekBar.value = video.currentTime;
+					timeCurrent.innerText = formatTime(video.currentTime);
 				}
 			});
 
@@ -141,12 +159,14 @@ templ Watch() {
 				resetUI();
 			});
 
+			// THE FIX: NATIVE SEEKING
+			// When you let go of the slider, it natively jumps to the timestamp. No FFmpeg restart!
 			seekBar.addEventListener('change', () => {
 				isSeeking = false;
-				playMovie(currentFile, currentDuration, parseInt(seekBar.value));
+				video.currentTime = parseInt(seekBar.value);
 			});
 
-			// AUTO-HIDE UI LOGIC
+			// --- AUTO-HIDE UI LOGIC ---
 			let hideTimeout;
 			function resetUI() {
 				wrapper.classList.remove('hide-ui');
@@ -160,22 +180,6 @@ templ Watch() {
 			wrapper.addEventListener('mouseleave', () => { if (!video.paused) wrapper.classList.add('hide-ui'); });
 			video.addEventListener('pause', resetUI);
 
-			// HEARTBEAT LOGIC
-			setInterval(() => {
-				if (currentFile && !video.paused) {
-					const fd = new FormData();
-					fd.append("file", currentFile);
-					fetch('/morb/stream/ping', { method: 'POST', body: fd });
-				}
-			}, 5000);
-
-			window.addEventListener('beforeunload', () => {
-				if (currentFile) {
-					const fd = new FormData();
-					fd.append("file", currentFile);
-					navigator.sendBeacon('/morb/stream/stop', fd);
-				}
-			});
-		</script>
-	}
+		</script>	
+		}
 }

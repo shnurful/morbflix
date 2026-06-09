@@ -8,10 +8,10 @@ templ Layout(pageTitle string) {
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>Morbflix - { pageTitle }</title>
 		
-		<script src="/static/htmx.min.js"></script>
-		<script src="/static/hls.min.js"></script>
+		<script src="/morbflix/static/htmx.min.js"></script>
+		<script src="/morbflix/static/hls.min.js"></script>
 
-		<link href="/static/styles.css" rel="stylesheet"/>
+		<link href="/morbflix/static/styles.css" rel="stylesheet"/>
 	</head>
 	
 	<!-- Restored your awesome radial gradient and custom colors to the master layout! -->
@@ -19,9 +19,9 @@ templ Layout(pageTitle string) {
 		
 		<!-- Global Navigation Bar -->
 		<div class="mb-10 space-x-6">
-			<a class="text-morb font-bold hover:underline" href="/">🏠 Home</a>
-			<a class="text-morb font-bold hover:underline" href="/library">🎬 My Library</a>
-			<a class="text-morb font-bold hover:underline" href="/downloads">⬇️ Downloads</a>
+			<a class="text-morb font-bold hover:underline" href="/morbflix/">🏠 Home</a>
+			<a class="text-morb font-bold hover:underline" href="/morbflix/library">🎬 My Library</a>
+			<a class="text-morb font-bold hover:underline" href="/morbflix/downloads">⬇️ Downloads</a>
 		</div>
 
 		<!-- Individual pages get injected here -->

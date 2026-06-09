@@ -6,21 +6,21 @@ import "net/url"
 // 1. The Movie Library List
 templ MovieList(folderName string, movies []Movie, folders []Folder) {
 	if folderName != "" {
-		<button hx-get="/htmx/movies" hx-target="#movie-list" class="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 rounded mb-4 transition-colors">
+		<button hx-get="/morbflix/htmx/movies" hx-target="#movie-list" class="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 rounded mb-4 transition-colors">
 			⬅ Back to Folders
 		</button>
 		<h3 class="text-xl font-bold text-red-500 mb-4">📁 { folderName }</h3>
 	}
 	
 	for _, f := range folders {
-		<div hx-get={ string(templ.URL("/htmx/movies?folder=" + url.QueryEscape(f.Name))) } hx-target="#movie-list" class="bg-neutral-800 p-3 rounded mb-2 cursor-pointer hover:bg-red-500 transition-colors flex justify-between">
+		<div hx-get={ string(templ.URL("/morbflix/htmx/movies?folder=" + url.QueryEscape(f.Name))) } hx-target="#movie-list" class="bg-neutral-800 p-3 rounded mb-2 cursor-pointer hover:bg-red-500 transition-colors flex justify-between">
 			<span>📁 <strong>{ f.Name }</strong></span>
 			<span class="text-gray-400">{ fmt.Sprintf("%d items", f.Count) }</span>
 		</div>
 	}
 
 	for _, m := range movies {
-		<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(m.Path), m.Duration)) } class="block bg-neutral-800 p-3 rounded mb-2 hover:bg-red-500 transition-colors flex justify-between">
+		<a href={ templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(m.Path), m.Duration)) } class="block bg-neutral-800 p-3 rounded mb-2 hover:bg-red-500 transition-colors flex justify-between">
 			<span>▶ { m.Title }</span>
 			<span class="text-gray-400">{ FormatDuration(m.Duration) }</span>
 		</a>
@@ -58,7 +58,7 @@ templ TorrentAddedInput() {
 templ VideoNav(currentTitle string, prev *NavItem, next *NavItem) {
 	<div class="flex justify-between items-center w-full max-w-[1000px] mt-4 bg-neutral-900 p-4 rounded-lg box-border shadow-lg">
 		if prev != nil {
-			<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(prev.Path), prev.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
+			<a href={ templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(prev.Path), prev.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
 				⏮ { prev.Title }
 			</a>
 		} else {
@@ -68,7 +68,7 @@ templ VideoNav(currentTitle string, prev *NavItem, next *NavItem) {
 		<span class="text-gray-300 font-bold text-lg">{ currentTitle }</span>
 
 		if next != nil {
-			<a href={ templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(next.Path), next.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
+			<a href={ templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(next.Path), next.Duration)) } class="bg-neutral-700 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors">
 				{ next.Title } ⏭
 			</a>
 		} else {

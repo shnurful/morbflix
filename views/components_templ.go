@@ -34,7 +34,7 @@ func MovieList(folderName string, movies []Movie, folders []Folder) templ.Compon
 		}
 		ctx = templ.ClearChildren(ctx)
 		if folderName != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<button hx-get=\"/htmx/movies\" hx-target=\"#movie-list\" class=\"w-full bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 rounded mb-4 transition-colors\">⬅ Back to Folders</button><h3 class=\"text-xl font-bold text-red-500 mb-4\">📁 ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<button hx-get=\"/morbflix/htmx/movies\" hx-target=\"#movie-list\" class=\"w-full bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 rounded mb-4 transition-colors\">⬅ Back to Folders</button><h3 class=\"text-xl font-bold text-red-500 mb-4\">📁 ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -58,9 +58,9 @@ func MovieList(folderName string, movies []Movie, folders []Folder) templ.Compon
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(templ.URL("/htmx/movies?folder=" + url.QueryEscape(f.Name))))
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(templ.URL("/morbflix/htmx/movies?folder=" + url.QueryEscape(f.Name))))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 16, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 16, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -103,9 +103,9 @@ func MovieList(folderName string, movies []Movie, folders []Folder) templ.Compon
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 templ.SafeURL
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(m.Path), m.Duration)))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(m.Path), m.Duration)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 23, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 23, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -291,9 +291,9 @@ func VideoNav(currentTitle string, prev *NavItem, next *NavItem) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var15 templ.SafeURL
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(prev.Path), prev.Duration)))
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(prev.Path), prev.Duration)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 61, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 61, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -345,9 +345,9 @@ func VideoNav(currentTitle string, prev *NavItem, next *NavItem) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 templ.SafeURL
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/watch?v=%s&d=%d", url.QueryEscape(next.Path), next.Duration)))
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/morbflix/watch?v=%s&d=%d", url.QueryEscape(next.Path), next.Duration)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 71, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/components.templ`, Line: 71, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
