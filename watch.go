@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,10 +16,11 @@ import (
 )
 
 type StreamState struct {
-	Cmd      *exec.Cmd
+	Cmd      *exec.Cmd // Can now be nil if finished!
 	Start    string
-	Subs     string
-	LastPing time.Time // NEW: Track the last heartbeat
+	Audio    string
+	Mono     string
+	LastPing time.Time
 }
 
 var activeStreams = make(map[string]*StreamState)
@@ -26,6 +28,9 @@ var streamMu sync.Mutex
 
 func serveHLS(c *gin.Context) {
 	rawPath := c.Param("filepath")
+	startParam := c.DefaultQuery("start", "0")
+	audioParam := c.DefaultQuery("audio", "0")
+	monoParam := c.DefaultQuery("mono", "0")
 
 	decodedPath, err := url.QueryUnescape(rawPath)
 	if err != nil {
@@ -46,9 +51,15 @@ func serveHLS(c *gin.Context) {
 
 	if chunk == "playlist.m3u8" {
 		streamMu.Lock()
-		
-		// If the playlist doesn't exist, we start the stream!
-		if _, err := os.Stat(playlistPath); os.IsNotExist(err) {
+		state, exists := activeStreams[filename]
+
+		needsRestart := !exists || state.Start != startParam || state.Audio != audioParam || state.Mono != monoParam
+
+		if needsRestart {
+			if exists && state.Cmd != nil && state.Cmd.Process != nil {
+				state.Cmd.Process.Kill()
+			}
+
 			os.RemoveAll(outDir)
 			os.MkdirAll(outDir, 0755)
 
@@ -61,14 +72,25 @@ func serveHLS(c *gin.Context) {
 				return
 			}
 
-			// 0% CPU COMMAND: Direct Copy H.265 into Fragmented MP4 chunks
 			ffmpegArgs := []string{
+				"-ss", startParam,
 				"-i", videoFilePath,
-				"-c:v", "copy",    // ZERO CPU USAGE!
-				"-c:a", "aac",     // Transcode audio for browsers
-				"-ac", "2",
+				"-map", "0:v:0",
+				"-map", fmt.Sprintf("0:a:%s?", audioParam),
+				"-c:v", "copy",
+				"-c:a", "aac",
+			}
+
+			if monoParam == "1" {
+				ffmpegArgs = append(ffmpegArgs, "-ac", "1")
+			} else {
+				ffmpegArgs = append(ffmpegArgs, "-ac", "2")
+			}
+
+			ffmpegArgs = append(ffmpegArgs,
 				"-b:a", "128k",
-				"-sn", "-dn",      // Strip subs/fonts (WASM handles them)
+				"-sn", "-dn",
+				"-avoid_negative_ts", "make_zero",
 				"-f", "hls",
 				"-hls_time", "2",
 				"-hls_list_size", "0",
@@ -76,25 +98,38 @@ func serveHLS(c *gin.Context) {
 				"-hls_segment_type", "fmp4",
 				"-hls_segment_filename", segmentPath,
 				playlistPath,
-			}
+			)
 
 			cmd := exec.Command("ffmpeg", ffmpegArgs...)
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Start(); err == nil {
-				// We don't need Start or Subs in the struct anymore!
-				activeStreams[filename] = &StreamState{Cmd: cmd, LastPing: time.Now()}
-				go func() {
-					_ = cmd.Wait()
+				activeStreams[filename] = &StreamState{
+					Cmd:      cmd,
+					Start:    startParam,
+					Audio:    audioParam,
+					Mono:     monoParam,
+					LastPing: time.Now(),
+				}
+				
+				// CRITICAL FIX: Keep state alive but mark as finished when done!
+				go func(runningCmd *exec.Cmd, f string) {
+					_ = runningCmd.Wait()
 					streamMu.Lock()
-					if activeStreams[filename] != nil {
-						delete(activeStreams, filename)
+					if st, ok := activeStreams[f]; ok && st.Cmd == runningCmd {
+						st.Cmd = nil // Mark as finished. Files stay safely in RAM!
 					}
 					streamMu.Unlock()
-				}()
+				}(cmd, filename)
 			}
+		} else {
+			if state, exists := activeStreams[filename]; exists {
+				state.LastPing = time.Now()
+			}
+		}
+		streamMu.Unlock()
 
-			// Wait for the first MP4 chunk before responding
+		if needsRestart {
 			firstChunk := filepath.Join(outDir, "chunk_000.m4s")
 			startTime := time.Now()
 			for {
@@ -105,19 +140,12 @@ func serveHLS(c *gin.Context) {
 					break
 				}
 				if time.Since(startTime) > 10*time.Second {
-					streamMu.Unlock()
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "timeout"})
 					return
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
-		} else {
-			// If it already exists, just update the heartbeat!
-			if state, exists := activeStreams[filename]; exists {
-				state.LastPing = time.Now()
-			}
 		}
-		streamMu.Unlock()
 	}
 
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -126,8 +154,10 @@ func serveHLS(c *gin.Context) {
 
 	if strings.HasSuffix(chunk, ".m3u8") {
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
-	} else if strings.HasSuffix(chunk, ".m4s") || strings.HasSuffix(chunk, ".mp4") {
-		c.Header("Content-Type", "video/mp4") // Correct MIME type for fMP4
+	} else if strings.HasSuffix(chunk, ".m4s") {
+		c.Header("Content-Type", "video/iso.segment")
+	} else if strings.HasSuffix(chunk, ".m4f") || strings.HasSuffix(chunk, ".mp4") {
+		c.Header("Content-Type", "video/mp4")
 	}
 
 	c.File(filepath.Join(outDir, chunk))
@@ -138,13 +168,16 @@ func cleanupDeadStreams() {
 		time.Sleep(5 * time.Second)
 		streamMu.Lock()
 		for file, state := range activeStreams {
-			// If we haven't received a ping in 15 seconds, kill the process!
+			// If we haven't received a ping in 15 seconds, clean it up
 			if time.Since(state.LastPing) > 15*time.Second {
-				if state.Cmd.Process != nil {
+				if state.Cmd != nil && state.Cmd.Process != nil {
 					state.Cmd.Process.Kill()
 				}
 				delete(activeStreams, file)
-				log.Printf("[Morbflix] Stream abandoned. Killed FFmpeg for: %s\n", file)
+				
+				// CRITICAL FIX: Wipe the RAM disk folder to free memory when abandoned!
+				os.RemoveAll(filepath.Join(ramDiskDir, file))
+				log.Printf("[Morbflix] Stream abandoned. Cleaned up: %s\n", file)
 			}
 		}
 		streamMu.Unlock()
@@ -155,7 +188,7 @@ func pingStream(c *gin.Context) {
 	file := c.PostForm("file")
 	streamMu.Lock()
 	if state, exists := activeStreams[file]; exists {
-		state.LastPing = time.Now() // Update the heartbeat
+		state.LastPing = time.Now()
 	}
 	streamMu.Unlock()
 	c.Status(http.StatusOK)
@@ -165,11 +198,13 @@ func stopStream(c *gin.Context) {
 	file := c.PostForm("file")
 	streamMu.Lock()
 	if state, exists := activeStreams[file]; exists {
-		if state.Cmd.Process != nil {
+		if state.Cmd != nil && state.Cmd.Process != nil {
 			state.Cmd.Process.Kill()
 		}
 		delete(activeStreams, file)
-		log.Printf("[Morbflix] User navigated away. Killed FFmpeg for: %s\n", file)
+		// CRITICAL FIX: Wipe the RAM disk folder when user closes the tab
+		os.RemoveAll(filepath.Join(ramDiskDir, file))
+		log.Printf("[Morbflix] User left. Cleaned up: %s\n", file)
 	}
 	streamMu.Unlock()
 	c.Status(http.StatusOK)
