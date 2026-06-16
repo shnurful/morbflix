@@ -119,7 +119,7 @@ templ Watch() {
 			function playMovie(filePath, duration, startSec) {
 				currentFile = filePath;
 				currentDuration = duration;
-
+				fetch("/morbflix/morb/subs/" + filePath).catch(() => {});	
 				seekBar.max = duration;
 				timeTotal.innerText = formatTime(duration);
 

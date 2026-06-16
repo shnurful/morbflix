@@ -1,12 +1,15 @@
 package main
 
 import (
+	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -42,6 +45,8 @@ func findAllVideos(root string) []string {
 	return videoFiles
 }
 
+var subMu sync.Mutex
+
 func extractSubs(c *gin.Context) {
 	rawPath := c.Param("filepath")
 	decodedPath, err := url.QueryUnescape(rawPath)
@@ -49,19 +54,27 @@ func extractSubs(c *gin.Context) {
 		decodedPath = rawPath
 	}
 	cleaned := strings.TrimPrefix(decodedPath, "/")
-	
 	videoFilePath := filepath.Join(hostMoviesDir, cleaned)
-	
-	// Create a safe, unique filename in RAM for this specific movie's subtitles
-	safeName := strings.ReplaceAll(cleaned, "/", "_")
-	outSubPath := filepath.Join(ramDiskDir, safeName + ".ass")
 
-	// If we already extracted them during this session, just serve them instantly
-	if _, err := os.Stat(outSubPath); os.IsNotExist(err) {
-		// Extract the first subtitle track (0:s:0) from the MKV
-		cmd := exec.Command("ffmpeg", "-y", "-i", videoFilePath, "-map", "0:s:0", "-c:s", "ass", outSubPath)
-		cmd.Run()
+	safeName := strings.ReplaceAll(cleaned, "/", "_")
+	outSubPath := filepath.Join(ramDiskDir, safeName+".ass")
+
+	subMu.Lock()
+	if _, statErr := os.Stat(outSubPath); os.IsNotExist(statErr) {
+		tmp := outSubPath + ".tmp"
+		// -f ass is required here: ffmpeg normally infers the muxer from the
+		// output extension, and ".tmp" isn't one it recognizes.
+		cmd := exec.Command("ffmpeg", "-y", "-i", videoFilePath,
+			"-map", "0:s:0", "-c:s", "ass", "-f", "ass", tmp)
+		if runErr := cmd.Run(); runErr != nil {
+			subMu.Unlock()
+			log.Printf("subtitle extraction failed for %s: %v", cleaned, runErr)
+			c.Status(http.StatusNotFound)
+			return
+		}
+		os.Rename(tmp, outSubPath)
 	}
+	subMu.Unlock()
 
 	c.File(outSubPath)
 }
